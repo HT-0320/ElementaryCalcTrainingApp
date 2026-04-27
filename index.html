@@ -2,20 +2,28 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0" />
   <title>さんすうトレーニング</title>
   <style>
     /* ===== リセット・ベース ===== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html {
+      height: 100%; /* fallback for browsers without dvh/CSS var support */
+      height: 100dvh;
+    }
+
     body {
       font-family: 'Rounded Mplus 1c', 'M PLUS Rounded 1c', 'Kosugi Maru', sans-serif;
       background: #fff8e1;
-      min-height: 100vh;
+      height: 100%; /* fallback */
+      height: var(--real-vh, 100dvh); /* JS sets --real-vh to window.innerHeight to exclude browser chrome */
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
+      touch-action: manipulation;
+      overscroll-behavior: none;
     }
 
     /* ===== 共通スクリーン ===== */
@@ -23,7 +31,8 @@
       display: none;
       width: 100%;
       max-width: 480px;
-      min-height: 100vh;
+      height: 100vh; /* fallback */
+      height: var(--real-vh, 100dvh); /* excludes mobile browser chrome */
       flex-direction: column;
       align-items: center;
       padding: 20px 16px;
@@ -70,6 +79,7 @@
       box-shadow: 0 6px 0 rgba(0,0,0,.18);
       transition: transform .1s, box-shadow .1s;
       letter-spacing: .1em;
+      touch-action: manipulation;
     }
     .op-btn:active {
       transform: translateY(4px);
@@ -78,6 +88,56 @@
     .op-btn.add    { background: #ff7043; color: #fff; }
     .op-btn.sub    { background: #42a5f5; color: #fff; }
     .op-btn.mul    { background: #66bb6a; color: #fff; }
+
+    /* ===== 問題数選択 ===== */
+    .count-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .count-label {
+      font-size: 1rem;
+      color: #666;
+      font-weight: bold;
+    }
+
+    .count-buttons {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .count-btn {
+      flex: 1;
+      padding: 12px 4px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      background: #fff;
+      color: #555;
+      border: 2px solid #ffcc80;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #ffb300;
+      transition: transform .1s, box-shadow .1s, background .15s, color .15s;
+      touch-action: manipulation;
+    }
+    .count-btn.active {
+      background: #ff7043;
+      color: #fff;
+      border-color: #ff7043;
+      box-shadow: 0 4px 0 #bf360c;
+    }
+    .count-btn:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 #ffb300;
+    }
+    .count-btn.active:active {
+      box-shadow: 0 1px 0 #bf360c;
+    }
 
     /* ===== 解答中画面 ===== */
     #answerScreen {
@@ -169,6 +229,7 @@
       box-shadow: 0 5px 0 #bf360c;
       transition: transform .1s, box-shadow .1s;
       letter-spacing: .15em;
+      touch-action: manipulation;
     }
     .confirm-btn:active {
       transform: translateY(3px);
@@ -195,6 +256,7 @@
       cursor: pointer;
       box-shadow: 0 4px 0 #ffb300;
       transition: transform .1s, box-shadow .1s;
+      touch-action: manipulation;
     }
     .numpad-btn:active {
       transform: translateY(3px);
@@ -258,6 +320,7 @@
       cursor: pointer;
       box-shadow: 0 4px 0 rgba(0,0,0,.2);
       letter-spacing: .1em;
+      touch-action: manipulation;
     }
     .result-restart-btn:active { transform: translateY(2px); }
 
@@ -292,6 +355,7 @@
       border-radius: 8px;
       cursor: pointer;
       transition: background .15s, color .15s;
+      touch-action: manipulation;
     }
     .filter-btn.active {
       background: #ff7043;
@@ -331,7 +395,15 @@
 <!-- ===================== 開始画面 ===================== -->
 <div id="startScreen" class="screen active">
   <div class="start-title">🔢 さんすう<br>トレーニング</div>
-  <div class="start-subtitle">100もん　チャレンジ！</div>
+  <div class="start-subtitle" id="startSubtitle">100もん　チャレンジ！</div>
+  <div class="count-wrap">
+    <div class="count-label">もんだいかず</div>
+    <div class="count-buttons">
+      <button class="count-btn"        data-count="10"  onclick="setCount(10)">10もん</button>
+      <button class="count-btn"        data-count="30"  onclick="setCount(30)">30もん</button>
+      <button class="count-btn active" data-count="100" onclick="setCount(100)">100もん</button>
+    </div>
+  </div>
   <div class="op-buttons">
     <button class="op-btn add" onclick="startGame('add')">＋　たしざん</button>
     <button class="op-btn sub" onclick="startGame('sub')">－　ひきざん</button>
@@ -391,7 +463,7 @@
   /* ========================================================
      状態変数
   ======================================================== */
-  const TOTAL = 100;
+  let selectedTotal = 100;
   const MAX_INPUT_DIGITS = 3;
 
   let questions    = [];   // { a, b, op, answer }
@@ -401,6 +473,18 @@
   let startTime    = 0;
   let elapsedMs    = 0;
   let currentFilter= 'all';
+
+  /* ========================================================
+     問題数選択
+  ======================================================== */
+  function setCount(n) {
+    selectedTotal = n;
+    document.querySelectorAll('.count-btn').forEach(btn => {
+      btn.classList.toggle('active', parseInt(btn.dataset.count) === n);
+    });
+    document.getElementById('startSubtitle').textContent =
+      n + 'もん　チャレンジ！';
+  }
 
   /* ========================================================
      問題生成
@@ -433,7 +517,7 @@
 
   function generateQuestions(op) {
     const qs = [];
-    for (let i = 0; i < TOTAL; i++) qs.push(generateQuestion(op));
+    for (let i = 0; i < selectedTotal; i++) qs.push(generateQuestion(op));
     return qs;
   }
 
@@ -475,14 +559,15 @@
      解答中画面
   ======================================================== */
   function renderQuestion() {
+    const total = questions.length;
     const q = questions[current];
     document.getElementById('questionText').textContent =
       `${q.a} ${q.symbol} ${q.b} ＝`;
 
-    const pct = (current / TOTAL) * 100;
+    const pct = (current / total) * 100;
     document.getElementById('progressBar').style.width = pct + '%';
     document.getElementById('progressLabel').textContent =
-      `${current + 1} / ${TOTAL}`;
+      `${current + 1} / ${total}`;
 
     inputVal = '';
     updateDisplay();
@@ -515,7 +600,7 @@
     userAnswers.push(parseInt(inputVal, 10));
     current++;
 
-    if (current >= TOTAL) {
+    if (current >= questions.length) {
       stopTimer();
       showResult();
     } else {
@@ -527,9 +612,10 @@
      結果表示
   ======================================================== */
   function showResult() {
+    const total = questions.length;
     // 正解数
     let correct = 0;
-    for (let i = 0; i < TOTAL; i++) {
+    for (let i = 0; i < total; i++) {
       if (userAnswers[i] === questions[i].answer) correct++;
     }
 
@@ -539,7 +625,7 @@
     const sec = totalSec % 60;
 
     document.getElementById('resultScore').textContent =
-      `${correct} / ${TOTAL} せいかい`;
+      `${correct} / ${total} せいかい`;
     document.getElementById('resultTime').textContent =
       `⏱ ${min}ふん ${sec}びょう`;
 
@@ -601,6 +687,24 @@
   function backToStart() {
     showScreen('startScreen');
   }
+
+  /* ========================================================
+     タッチ操作の安定化（拡大・スクロール防止）
+  ======================================================== */
+  // 解答一覧(.answer-list)以外でのスクロール・ピンチズームを防止する。
+  // user-scalable=no と組み合わせてタップ時の画面拡大を完全に抑止する。
+  document.addEventListener('touchmove', function(e) {
+    if (!e.target.closest('.answer-list')) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  // ビューポート高さを動的に設定（アドレスバー領域を除外）
+  function applyViewportHeight() {
+    document.documentElement.style.setProperty('--real-vh', window.innerHeight + 'px');
+  }
+  applyViewportHeight();
+  window.addEventListener('resize', applyViewportHeight);
 </script>
 </body>
 </html>
