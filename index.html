@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>さんすうトレーニング</title>
   <style>
     /* ===== リセット・ベース ===== */
@@ -143,6 +143,8 @@
     #answerScreen {
       justify-content: flex-start;
       gap: 0;
+      /* iOSのアドレスバー・ナビゲーションバーとの重なりを防ぐ */
+      padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
     }
 
     /* 進捗バー */
@@ -524,9 +526,16 @@
   /* ========================================================
      画面切り替え
   ======================================================== */
+  const VP_ANSWER = 'width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, viewport-fit=cover';
+  const VP_DEFAULT = 'width=device-width, initial-scale=1.0, viewport-fit=cover';
+
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+
+    // 解答中画面のみスクロール・拡大縮小を制限し、それ以外は解除する
+    const vp = document.querySelector('meta[name="viewport"]');
+    vp.setAttribute('content', id === 'answerScreen' ? VP_ANSWER : VP_DEFAULT);
   }
 
   /* ========================================================
@@ -691,10 +700,11 @@
   /* ========================================================
      タッチ操作の安定化（拡大・スクロール防止）
   ======================================================== */
-  // 解答一覧(.answer-list)以外でのスクロール・ピンチズームを防止する。
-  // user-scalable=no と組み合わせてタップ時の画面拡大を完全に抑止する。
+  // 解答中画面のみスクロール・ピンチズームを防止する。
+  // それ以外の画面（開始画面・結果画面）では制限しない。
+  const _answerScreen = document.getElementById('answerScreen');
   document.addEventListener('touchmove', function(e) {
-    if (!e.target.closest('.answer-list')) {
+    if (_answerScreen.classList.contains('active')) {
       e.preventDefault();
     }
   }, { passive: false });
